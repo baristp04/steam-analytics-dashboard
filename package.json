@@ -1,0 +1,14 @@
+{
+  "name": "steam-analytics-monorepo",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+    "db:up": "docker compose up -d"
+  }
+}
