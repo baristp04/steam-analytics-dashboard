@@ -26,7 +26,6 @@ function parseSteamReleaseDate(dateString: string | undefined | null): ParsedRel
   const trimmed = dateString.trim();
   if (!trimmed) return empty;
 
-
   if (/coming soon|tba|to be announced/i.test(trimmed)) return empty;
 
   let match = trimmed.match(/^(\d{1,2})\s+([A-Za-z]{3,})[,]?\s+(\d{4})$/);
@@ -61,7 +60,6 @@ function parseSteamReleaseDate(dateString: string | undefined | null): ParsedRel
     }
   }
 
-
   match = trimmed.match(/^(\d{4})$/);
   if (match) {
     const year = parseInt(match[1], 10);
@@ -70,6 +68,41 @@ function parseSteamReleaseDate(dateString: string | undefined | null): ParsedRel
 
   console.log(`Tanınmayan release_date formatı, atlanıyor: "${trimmed}"`);
   return empty;
+}
+
+async function fetchSteamGridImage(appId: number | string): Promise<string | null> {
+  const apiKey = process.env.STEAMGRIDDB_API_KEY;
+  if (!apiKey) {
+    console.warn("Uyarı: STEAMGRIDDB_API_KEY bulunamadı, grid_image null dönecek.");
+    return null;
+  }
+
+  try {
+    const response = await fetch(`https://www.steamgriddb.com/api/v2/grids/steam/${appId}?dimensions=600x900`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) return null; 
+      console.warn(`SteamGridDB HTTP ${response.status} hatası döndürdü (AppID: ${appId})`);
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (data.success && data.data && data.data.length > 0) {
+      return data.data[0].url; 
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`AppID ${appId} için SteamGridDB'den görsel çekilemedi:`, error);
+    return null;
+  }
 }
 
 export const runSteamSync = async () => {
@@ -87,18 +120,44 @@ export const runSteamSync = async () => {
     { headers }
     );    
     if (!listResponse.ok) {
-    const errorText = await listResponse.text();
-    throw new Error(`Steam API Listeleme Hatası (${listResponse.status}): ${errorText.substring(0, 150)}`);
+      const errorText = await listResponse.text();
+      throw new Error(`Steam API Listeleme Hatası (${listResponse.status}): ${errorText.substring(0, 150)}`);
     }
 
     const listData = await listResponse.json();
-    const apps = listData.response.apps
+    const apps = listData.response.apps;
     
-    console.log(`Toplam ${apps.length} adet uygulama bulundu.`);
+    console.log(`Steam'den toplam ${apps.length} adet uygulama bulundu.`);
+    console.log("Veritabanındaki mevcut oyunlar kontrol ediliyor...");
+    
+    const existingGames = await prisma.game.findMany({
+      select: { appid: true }
+    });
 
-    const gamesToProcess = apps.slice(0, 10);
+    const existingAppIds = new Set(existingGames.map(g => Number(g.appid)));
+    const newApps = apps.filter((app: { appid: number; name: string }) => !existingAppIds.has(app.appid));
+
+    console.log(`Veritabanında bulunmayan, eklenebilecek ${newApps.length} yeni oyun tespit edildi.`);
+
+    const BATCH_SIZE = 10; 
+    const gamesToProcess = newApps.slice(0, BATCH_SIZE);
+    
+    if (gamesToProcess.length === 0) {
+      console.log("Senkronize edilecek yeni oyun kalmadı! Veritabanınız güncel.");
+      
+      await prisma.syncRun.update({
+        where: { id: syncRun.id },
+        data: {
+          status: 'COMPLETED',
+          finished_at: new Date(),
+          fetched_count: 0,
+          inserted_count: 0,
+        },
+      });
+      return; 
+    }
+
     let insertedCount = 0;
-
     const ensuredGenreIds = new Set<string>();
 
     for (const app of gamesToProcess) {
@@ -154,7 +213,11 @@ export const runSteamSync = async () => {
           })),
         };
 
-        // Prisma'ya yeni tarih değişkenlerimizi de gönderiyoruz
+        const gridImageUrl = await fetchSteamGridImage(app.appid);
+        if (gridImageUrl) {
+           console.log(`SteamGridDB görseli bulundu: ${gridImageUrl}`);
+        }
+
         await prisma.game.upsert({
           where: { appid: app.appid },
           update: {
@@ -162,13 +225,12 @@ export const runSteamSync = async () => {
             type: gameDetails.type,
             steam_url: `https://store.steampowered.com/app/${app.appid}`,
             header_image: gameDetails.header_image,
+            grid_image: gridImageUrl,
             raw_json: gameDetails,
-            // Yeni Eklenen Alanlar
             release_date: releaseDate,
             release_year: releaseYear,
             release_month: releaseMonth,
             coming_soon: comingSoon,
-            // Var olan tür bağlantılarını temizleyip güncel listeyle yeniden oluşturuyoruz
             genres: {
               deleteMany: {},
               ...genreRelationWrite,
@@ -180,8 +242,8 @@ export const runSteamSync = async () => {
             type: gameDetails.type,
             steam_url: `https://store.steampowered.com/app/${app.appid}`,
             header_image: gameDetails.header_image,
+            grid_image: gridImageUrl, 
             raw_json: gameDetails,
-            // Yeni Eklenen Alanlar
             release_date: releaseDate,
             release_year: releaseYear,
             release_month: releaseMonth,
