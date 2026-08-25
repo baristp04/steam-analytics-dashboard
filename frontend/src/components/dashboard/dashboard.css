@@ -1,0 +1,109 @@
+@keyframes sga-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.sga-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.sga-tile {
+  position: relative;
+  display: block;
+  aspect-ratio: 2 / 3;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #3a5674;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+
+.sga-tile:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 22px rgba(0,0,0,0.55);
+  border-color: #66c0f4;
+}
+
+.sga-icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.55;
+  transition: opacity .15s ease;
+}
+
+.sga-tile:hover .sga-icon { opacity: 0.15; }
+
+.sga-title-strip {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 8px 8px;
+  background: linear-gradient(to top, rgba(6,10,15,0.9), rgba(6,10,15,0));
+  font-size: 12px;
+  font-weight: 600;
+  color: #f1f5f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 1;
+  transition: opacity .15s ease;
+}
+
+.sga-tile:hover .sga-title-strip { opacity: 0; }
+
+.sga-hover-panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 10px;
+  background: linear-gradient(to top, rgba(6,10,15,0.97) 0%, rgba(6,10,15,0.88) 55%, rgba(6,10,15,0.15) 100%);
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+
+.sga-tile:hover .sga-hover-panel { opacity: 1; }
+
+.sga-hover-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin-bottom: 4px;
+  line-height: 1.25;
+}
+
+.sga-hover-meta {
+  font-size: 10.5px;
+  color: #9db0c0;
+  margin-bottom: 6px;
+}
+
+.sga-hover-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.sga-hover-tag {
+  font-size: 9.5px;
+  padding: 2px 5px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.06);
+  color: #82abc4;
+  border: 1px solid #3a5674;
+}
+
+.sga-hover-link {
+  font-size: 11px;
+  color: #66c0f4;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

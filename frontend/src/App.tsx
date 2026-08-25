@@ -1,4 +1,4 @@
-import SteamGenreDashboard from "./components/SteamGenreDashBoard.tsx";
+import SteamGenreDashboard from "./pages/SteamGenreDashboard";
 
 function App() {
   return (
