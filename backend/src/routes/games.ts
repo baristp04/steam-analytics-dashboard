@@ -37,7 +37,7 @@ router.get('/', async (req: Request, res: Response) => {
     if (genre) {
       where.genres = {
         some: {
-          genre: { name: { equals: String(genre), mode: 'insensitive' } },
+          genre_id: String(genre),
         },
       };
     }
