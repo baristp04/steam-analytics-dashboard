@@ -1,6 +1,12 @@
+import { RefreshCw } from "lucide-react";
 import { C } from "../../components/dashboard/theme";
 
-export function TopBar() {
+interface TopBarProps {
+  syncing: boolean;
+  onSync: () => void;
+}
+
+export function TopBar({ syncing, onSync }: TopBarProps) {
   return (
     <div style={{ background: C.bgDarkest, borderBottom: `1px solid ${C.border}`, padding: "12px 32px", display: "flex", justifyContent: "center" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", maxWidth: 1500 }}>
@@ -16,7 +22,19 @@ export function TopBar() {
           <span style={{ color: C.blue, cursor: "pointer" }}>Dashboard</span>
           <span style={{ cursor: "pointer" }}>Games</span>
           <span style={{ cursor: "pointer" }}>Genres</span>
-          <span style={{ cursor: "pointer" }}>Sync</span>
+          <span
+            onClick={syncing ? undefined : onSync}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              cursor: syncing ? "default" : "pointer",
+              color: syncing ? C.blue : C.textDim,
+            }}
+          >
+            <RefreshCw size={12} style={syncing ? { animation: "sga-spin 1s linear infinite" } : undefined} />
+            {syncing ? "Syncing..." : "Sync"}
+          </span>
         </div>
       </div>
     </div>

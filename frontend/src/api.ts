@@ -9,6 +9,15 @@ async function fetchJson<T>(url: string): Promise<T> {
   return res.json();
 }
 
+async function postJson<T>(url: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${url}`, { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 export interface Genre {
   id: string;
   name: string;
@@ -41,6 +50,20 @@ export interface MonthsResponse {
   year: number;
   months: number[];
 }
+
+export interface SyncRun {
+  id: number;
+  started_at: string;
+  finished_at: string | null;
+  status: 'RUNNING' | 'COMPLETED' | 'FAILED';
+  fetched_count: number;
+  inserted_count: number;
+  updated_count: number;
+  failed_count: number;
+  error_message: string | null;
+}
+
+export type SyncStatusResponse = SyncRun | { message: string };
 
 export const api = {
   getGenres: () => fetchJson<{ genres: Genre[] }>('/genres').then(r => r.genres),
@@ -77,4 +100,8 @@ export const api = {
     if (params.pageSize !== undefined) searchParams.set('pageSize', String(params.pageSize));
     return fetchJson<GamesResponse>(`/games?${searchParams.toString()}`);
   },
+
+  syncSteam: () => postJson<{ message: string }>('/admin/sync-steam'),
+
+  getSyncStatus: () => fetchJson<SyncStatusResponse>('/admin/sync-status'),
 };

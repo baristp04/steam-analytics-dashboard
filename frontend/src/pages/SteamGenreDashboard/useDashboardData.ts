@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../api";
 import { HUES, MONTHS } from "../../components/dashboard/theme";
 import { toDashboardGame, toDashboardGenre, type DashboardGame, type DashboardGenre } from "../../components/dashboard/types";
+import { useSteamSync } from "./useSteamSync";
 
 export function useDashboardData() {
   const [year, setYear] = useState(2025);
@@ -83,6 +84,15 @@ export function useDashboardData() {
     loadGames();
   }, [loadGames]);
 
+  const refreshAfterSync = useCallback(() => {
+    loadYears();
+    loadGenres();
+    loadAnalytics();
+    loadGames();
+  }, [loadYears, loadGenres, loadAnalytics, loadGames]);
+
+  const { syncing, syncBanner, triggerSync } = useSteamSync(refreshAfterSync);
+
   const maxCount = genres.length > 0 ? Math.max(...genres.map(g => g.count)) : 1;
   const totalGames = genres.reduce((s, g) => s + g.count, 0);
   const topGenre = genres.reduce((a, b) => (b.count > a.count ? b : a), genres[0]);
@@ -114,5 +124,8 @@ export function useDashboardData() {
     monthLabel,
     filteredGames,
     genreObj,
+    syncing,
+    syncBanner,
+    triggerSync,
   };
 }

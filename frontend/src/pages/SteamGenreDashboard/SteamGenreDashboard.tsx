@@ -9,6 +9,7 @@ import { TopBar } from "./TopBar";
 import { FilterBar } from "./FilterBar";
 import { GenreBreakdown } from "./GenreBreakdown";
 import { GameGridPanel } from "./GameGridPanel";
+import { SyncBanner } from "./SyncBanner";
 
 export default function SteamGenreDashboard() {
   const {
@@ -27,6 +28,9 @@ export default function SteamGenreDashboard() {
     monthLabel,
     filteredGames,
     genreObj,
+    syncing,
+    syncBanner,
+    triggerSync,
   } = useDashboardData();
 
   if (loading) {
@@ -47,9 +51,11 @@ export default function SteamGenreDashboard() {
         overflow: "hidden",
       }}
     >
-      <TopBar />
+      <TopBar syncing={syncing} onSync={triggerSync} />
 
       <div style={{ padding: "24px 32px", width: "100%", maxWidth: 1500, margin: "0 auto" }}>
+        {syncBanner && <SyncBanner status={syncBanner.status} message={syncBanner.message} />}
+
         <FilterBar
           year={year}
           onYearChange={setYear}
