@@ -1,10 +1,17 @@
 import { RefreshCw } from "lucide-react";
+import { NavLink } from "react-router-dom";
 import { C } from "../../components/dashboard/theme";
 
 interface TopBarProps {
-  syncing: boolean;
-  onSync: () => void;
+  syncing?: boolean;
+  onSync?: () => void;
 }
+
+const navLinkStyle = ({ isActive }: { isActive: boolean }) => ({
+  color: isActive ? C.blue : C.textDim,
+  cursor: "pointer",
+  textDecoration: "none",
+});
 
 export function TopBar({ syncing, onSync }: TopBarProps) {
   return (
@@ -18,23 +25,25 @@ export function TopBar({ syncing, onSync }: TopBarProps) {
             GENRE RELEASE ANALYTICS
           </span>
         </div>
-        <div style={{ display: "flex", gap: 22, fontSize: 13, color: C.textDim }}>
-          <span style={{ color: C.blue, cursor: "pointer" }}>Dashboard</span>
-          <span style={{ cursor: "pointer" }}>Games</span>
+        <div style={{ display: "flex", gap: 22, fontSize: 13, color: C.textDim, alignItems: "center" }}>
+          <NavLink to="/" end style={navLinkStyle}>Dashboard</NavLink>
+          <NavLink to="/games" style={navLinkStyle}>Games</NavLink>
           <span style={{ cursor: "pointer" }}>Genres</span>
-          <span
-            onClick={syncing ? undefined : onSync}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 5,
-              cursor: syncing ? "default" : "pointer",
-              color: syncing ? C.blue : C.textDim,
-            }}
-          >
-            <RefreshCw size={12} style={syncing ? { animation: "sga-spin 1s linear infinite" } : undefined} />
-            {syncing ? "Syncing..." : "Sync"}
-          </span>
+          {onSync && (
+            <span
+              onClick={syncing ? undefined : onSync}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                cursor: syncing ? "default" : "pointer",
+                color: syncing ? C.blue : C.textDim,
+              }}
+            >
+              <RefreshCw size={12} style={syncing ? { animation: "sga-spin 1s linear infinite" } : undefined} />
+              {syncing ? "Syncing..." : "Sync"}
+            </span>
+          )}
         </div>
       </div>
     </div>
