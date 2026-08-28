@@ -1,4 +1,5 @@
 import { Trophy } from "lucide-react";
+import { Link } from "react-router-dom";
 import { C } from "../../components/dashboard/theme";
 import type { DashboardGenre } from "../../components/dashboard/types";
 
@@ -23,8 +24,11 @@ export function TopGenresPanel({ topGenres, monthLabel, year }: TopGenresPanelPr
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {topGenres.map((g, i) => (
-          <div
+          <Link
             key={g.id}
+            to={`/genres?genre=${g.id}`}
+            title={`View ${g.name} genre analytics`}
+            className="sga-genre-row"
             style={{
               display: "flex",
               alignItems: "center",
@@ -33,6 +37,7 @@ export function TopGenresPanel({ topGenres, monthLabel, year }: TopGenresPanelPr
               borderRadius: 4,
               background: C.bgCard,
               border: `1px solid ${C.border}`,
+              textDecoration: "none",
             }}
           >
             <span
@@ -53,7 +58,7 @@ export function TopGenresPanel({ topGenres, monthLabel, year }: TopGenresPanelPr
             </span>
             <span style={{ flex: 1, fontSize: 14, color: C.white }}>{g.name}</span>
             <span style={{ fontSize: 14, fontWeight: 600, color: C.blue }}>{g.count}</span>
-          </div>
+          </Link>
         ))}
         {topGenres.length === 0 && (
           <div style={{ color: C.textDim, fontSize: 13, padding: 12, textAlign: "center" }}>

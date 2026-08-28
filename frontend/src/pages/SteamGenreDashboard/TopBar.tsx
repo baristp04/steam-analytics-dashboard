@@ -28,7 +28,7 @@ export function TopBar({ syncing, onSync }: TopBarProps) {
         <div style={{ display: "flex", gap: 22, fontSize: 13, color: C.textDim, alignItems: "center" }}>
           <NavLink to="/" end style={navLinkStyle}>Dashboard</NavLink>
           <NavLink to="/games" style={navLinkStyle}>Games</NavLink>
-          <span style={{ cursor: "pointer" }}>Genres</span>
+          <NavLink to="/genres" style={navLinkStyle}>Genres</NavLink>
           {onSync && (
             <span
               onClick={syncing ? undefined : onSync}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../../api";
 import { HUES } from "../../components/dashboard/theme";
 import { toDashboardGame, toDashboardGenre, type DashboardGame, type DashboardGenre } from "../../components/dashboard/types";
@@ -7,11 +8,26 @@ import { useSteamSync } from "../SteamGenreDashboard/useSteamSync";
 const PAGE_SIZE = 40;
 
 export function useGamesData() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [year, setYear] = useState<number | -1>(-1);
   const [month, setMonth] = useState(-1);
-  const [genre, setGenre] = useState<string | null>(null);
+  const [genre, setGenreState] = useState<string | null>(searchParams.get("genre") || null);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+
+  // Keep the ?genre= param in sync so the filter is shareable / reflects deep links.
+  const setGenre = useCallback((next: string | null) => {
+    setGenreState(next);
+    setSearchParams(
+      (prev) => {
+        if (next) prev.set("genre", next);
+        else prev.delete("genre");
+        return prev;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
 
   const [genres, setGenres] = useState<DashboardGenre[]>([]);
   const [years, setYears] = useState<number[]>([]);

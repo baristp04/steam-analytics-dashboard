@@ -3,6 +3,14 @@
   to { transform: rotate(360deg); }
 }
 
+.sga-genre-row {
+  transition: background .12s ease;
+}
+
+.sga-genre-row:hover {
+  background: #263a4f;
+}
+
 .sga-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));

@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { C } from "../../components/dashboard/theme";
 import type { DashboardGenre } from "../../components/dashboard/types";
 
@@ -14,7 +15,13 @@ export function GenreBreakdown({ genres, maxCount }: GenreBreakdownProps) {
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {genres.map((g) => (
-          <div key={g.id} style={{ padding: "6px 8px" }}>
+          <Link
+            key={g.id}
+            to={`/genres?genre=${g.id}`}
+            title={`View ${g.name} genre analytics`}
+            style={{ padding: "6px 8px", borderRadius: 3, textDecoration: "none", display: "block" }}
+            className="sga-genre-row"
+          >
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
               <span style={{ color: C.text }}>{g.name}</span>
               <span style={{ color: C.textDim }}>{g.count}</span>
@@ -28,7 +35,7 @@ export function GenreBreakdown({ genres, maxCount }: GenreBreakdownProps) {
                 }}
               />
             </div>
-          </div>
+          </Link>
         ))}
         {genres.length === 0 && (
           <div style={{ color: C.textDim, fontSize: 13, padding: 12, textAlign: "center" }}>
