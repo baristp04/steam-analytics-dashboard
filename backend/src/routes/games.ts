@@ -48,7 +48,22 @@ router.get('/', async (req: Request, res: Response) => {
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { release_date: 'desc' },
-        include: { genres: { include: { genre: true } } },
+        select: {
+          appid: true,
+          name: true,
+          type: true,
+          release_date: true,
+          release_year: true,
+          release_month: true,
+          coming_soon: true,
+          steam_url: true,
+          header_image: true,
+          grid_image: true,
+          last_modified: true,
+          created_at: true,
+          updated_at: true,
+          genres: { include: { genre: true } },
+        },
       }),
       prisma.game.count({ where }),
     ]);
@@ -65,6 +80,7 @@ router.get('/', async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Oyun listesi alınamadı.' });
   }
 });
+
 
 // GET /api/games/:appid
 router.get('/:appid', async (req: Request, res: Response) => {

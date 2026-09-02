@@ -1,5 +1,6 @@
 import dotenv from 'dotenv'
 import prisma from '../lib/prisma';
+import { cache } from '../lib/cache';
 
 dotenv.config({ path: '../packages/database/.env' });
 
@@ -105,6 +106,114 @@ async function fetchSteamGridImage(appId: number | string): Promise<string | nul
   }
 }
 
+/**
+ * Tek bir oyunu işler: Steam API'den detay çeker ve DB'ye yazar.
+ * Hata durumunda false döner (Promise.allSettled ile uyumlu).
+ */
+async function processSingleGame(
+  app: { appid: number; name: string },
+  ensuredGenreIds: Set<string>
+): Promise<boolean> {
+  console.log(`Oyun detayları çekiliyor: AppID ${app.appid} - ${app.name}`);
+
+  const detailResponse = await fetch(
+    `https://store.steampowered.com/api/appdetails?appids=${app.appid}`,
+    { headers }
+  );
+
+  if (!detailResponse.ok) {
+    console.log(`Oyun (${app.appid}) çekilemedi, atlanıyor. Durum Kodu: ${detailResponse.status}`);
+    return false;
+  }
+
+  const detailData = await detailResponse.json();
+
+  if (!detailData[app.appid]?.success) {
+    return false;
+  }
+
+  const gameDetails = detailData[app.appid].data;
+
+  let releaseDate: Date | null = null;
+  let releaseYear: number | null = null;
+  let releaseMonth: number | null = null;
+  let comingSoon = false;
+
+  if (gameDetails.release_date) {
+    comingSoon = gameDetails.release_date.coming_soon || false;
+    const parsed = parseSteamReleaseDate(gameDetails.release_date.date);
+    releaseDate = parsed.date;
+    releaseYear = parsed.year;
+    releaseMonth = parsed.month;
+  }
+
+  const rawGenres: { id: string; description: string }[] = Array.isArray(gameDetails.genres)
+    ? gameDetails.genres.filter((g: { id?: string; description?: string }) => g?.id && g?.description)
+    : [];
+
+  // Henüz DB'ye yazılmamış türleri upsert et
+  const newGenres = rawGenres.filter((g) => !ensuredGenreIds.has(g.id));
+  if (newGenres.length > 0) {
+    await Promise.all(
+      newGenres.map((g) =>
+        prisma.genre.upsert({
+          where: { id: g.id },
+          update: { name: g.description },
+          create: { id: g.id, name: g.description },
+        })
+      )
+    );
+    newGenres.forEach((g) => ensuredGenreIds.add(g.id));
+  }
+
+  const genreRelationWrite = {
+    create: rawGenres.map((g) => ({
+      genre: { connect: { id: g.id } },
+    })),
+  };
+
+  const gridImageUrl = await fetchSteamGridImage(app.appid);
+  if (gridImageUrl) {
+    console.log(`SteamGridDB görseli bulundu: ${gridImageUrl}`);
+  }
+
+  await prisma.game.upsert({
+    where: { appid: app.appid },
+    update: {
+      name: gameDetails.name,
+      type: gameDetails.type,
+      steam_url: `https://store.steampowered.com/app/${app.appid}`,
+      header_image: gameDetails.header_image,
+      grid_image: gridImageUrl,
+      raw_json: gameDetails,
+      release_date: releaseDate,
+      release_year: releaseYear,
+      release_month: releaseMonth,
+      coming_soon: comingSoon,
+      genres: {
+        deleteMany: {},
+        ...genreRelationWrite,
+      },
+    },
+    create: {
+      appid: app.appid,
+      name: gameDetails.name,
+      type: gameDetails.type,
+      steam_url: `https://store.steampowered.com/app/${app.appid}`,
+      header_image: gameDetails.header_image,
+      grid_image: gridImageUrl,
+      raw_json: gameDetails,
+      release_date: releaseDate,
+      release_year: releaseYear,
+      release_month: releaseMonth,
+      coming_soon: comingSoon,
+      genres: genreRelationWrite,
+    },
+  });
+
+  return true;
+}
+
 export const runSteamSync = async () => {
   console.log("Steam senkronizasyonu başlatılıyor...");
 
@@ -139,7 +248,10 @@ export const runSteamSync = async () => {
 
     console.log(`Veritabanında bulunmayan, eklenebilecek ${newApps.length} yeni oyun tespit edildi.`);
 
-    const BATCH_SIZE = 10; 
+    const BATCH_SIZE = 10;
+    const CHUNK_SIZE = 5;           // Kaç oyun paralel işlensin
+    const CHUNK_DELAY_MS = 500;     // Chunk'lar arası bekleme (rate limit)
+
     const gamesToProcess = newApps.slice(0, BATCH_SIZE);
     
     if (gamesToProcess.length === 0) {
@@ -160,101 +272,26 @@ export const runSteamSync = async () => {
     let insertedCount = 0;
     const ensuredGenreIds = new Set<string>();
 
-    for (const app of gamesToProcess) {
-      console.log(`Oyun detayları çekiliyor: AppID ${app.appid} - ${app.name}`);
-      
-      const detailResponse = await fetch(`https://store.steampowered.com/api/appdetails?appids=${app.appid}`, { headers });
-      
-      if (!detailResponse.ok) {
-        console.log(`Oyun (${app.appid}) çekilemedi, atlanıyor. Durum Kodu: ${detailResponse.status}`);
-        continue;
+    // Oyunları CHUNK_SIZE'lık gruplara böl, her grubu paralel işle
+    for (let i = 0; i < gamesToProcess.length; i += CHUNK_SIZE) {
+      const chunk = gamesToProcess.slice(i, i + CHUNK_SIZE);
+      console.log(`Chunk işleniyor: ${i + 1}-${Math.min(i + CHUNK_SIZE, gamesToProcess.length)} / ${gamesToProcess.length}`);
+
+      // Promise.allSettled: bir oyun hata verse bile diğerleri etkilenmez
+      const results = await Promise.allSettled(
+        chunk.map((app: { appid: number; name: string }) =>
+          processSingleGame(app, ensuredGenreIds)
+        )
+      );
+
+      insertedCount += results.filter(
+        (r) => r.status === 'fulfilled' && r.value === true
+      ).length;
+
+      // Son chunk değilse rate limit için bekle
+      if (i + CHUNK_SIZE < gamesToProcess.length) {
+        await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY_MS));
       }
-
-      const detailData = await detailResponse.json();
-
-      if (detailData[app.appid]?.success) {
-        const gameDetails = detailData[app.appid].data;
-
-        let releaseDate: Date | null = null;
-        let releaseYear: number | null = null;
-        let releaseMonth: number | null = null;
-        let comingSoon = false;
-
-        if (gameDetails.release_date) {
-          comingSoon = gameDetails.release_date.coming_soon || false;
-          const parsed = parseSteamReleaseDate(gameDetails.release_date.date);
-          releaseDate = parsed.date;
-          releaseYear = parsed.year;
-          releaseMonth = parsed.month;
-        }
-
-        const rawGenres: { id: string; description: string }[] = Array.isArray(gameDetails.genres)
-          ? gameDetails.genres.filter((g: { id?: string; description?: string }) => g?.id && g?.description)
-          : [];
-
-        const newGenres = rawGenres.filter((g) => !ensuredGenreIds.has(g.id));
-
-        if (newGenres.length > 0) {
-          await Promise.all(
-            newGenres.map((g) =>
-              prisma.genre.upsert({
-                where: { id: g.id },
-                update: { name: g.description },
-                create: { id: g.id, name: g.description },
-              })
-            )
-          );
-          newGenres.forEach((g) => ensuredGenreIds.add(g.id));
-        }
-
-        const genreRelationWrite = {
-          create: rawGenres.map((g) => ({
-            genre: { connect: { id: g.id } },
-          })),
-        };
-
-        const gridImageUrl = await fetchSteamGridImage(app.appid);
-        if (gridImageUrl) {
-           console.log(`SteamGridDB görseli bulundu: ${gridImageUrl}`);
-        }
-
-        await prisma.game.upsert({
-          where: { appid: app.appid },
-          update: {
-            name: gameDetails.name,
-            type: gameDetails.type,
-            steam_url: `https://store.steampowered.com/app/${app.appid}`,
-            header_image: gameDetails.header_image,
-            grid_image: gridImageUrl,
-            raw_json: gameDetails,
-            release_date: releaseDate,
-            release_year: releaseYear,
-            release_month: releaseMonth,
-            coming_soon: comingSoon,
-            genres: {
-              deleteMany: {},
-              ...genreRelationWrite,
-            },
-          },
-          create: {
-            appid: app.appid,
-            name: gameDetails.name,
-            type: gameDetails.type,
-            steam_url: `https://store.steampowered.com/app/${app.appid}`,
-            header_image: gameDetails.header_image,
-            grid_image: gridImageUrl, 
-            raw_json: gameDetails,
-            release_date: releaseDate,
-            release_year: releaseYear,
-            release_month: releaseMonth,
-            coming_soon: comingSoon,
-            genres: genreRelationWrite,
-          },
-        });
-        insertedCount++;
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, 1500));
     }
 
     await prisma.syncRun.update({
@@ -266,6 +303,10 @@ export const runSteamSync = async () => {
         inserted_count: insertedCount,
       },
     });
+
+    // Yeni veriler eklendi — ilgili cache girdilerini temizle
+    cache.clear();
+    console.log("Cache temizlendi.");
 
     console.log(`Senkronizasyon başarıyla tamamlandı! ${insertedCount} oyun veritabanına yazıldı.`);
 

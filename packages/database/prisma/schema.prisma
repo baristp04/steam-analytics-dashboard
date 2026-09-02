@@ -25,6 +25,9 @@ model Game {
 
   genres        GameGenre[]
 
+  @@index([release_year])
+  @@index([release_year, release_month])
+  @@index([name])
   @@map("games") 
 }
 

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { runSteamSync } from '../services/steam_service';
 import prisma from '../lib/prisma';
+import { cache } from '../lib/cache';
 
 const router = Router();
 
@@ -30,6 +31,14 @@ router.get('/sync-status', async (req: Request, res: Response) => {
     console.error('Sync durumu çekilirken hata:', error);
     res.status(500).json({ error: 'Sync durumu alınamadı.' });
   }
+});
+
+// POST /api/admin/clear-cache
+// Cache manuel olarak temizlemek için (örn. veri manuel değiştirildikten sonra)
+router.post('/clear-cache', (req: Request, res: Response) => {
+  const before = cache.size();
+  cache.clear();
+  res.json({ message: `Cache temizlendi. ${before} kayıt silindi.` });
 });
 
 export default router;

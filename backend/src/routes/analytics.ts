@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
+import { cache, CACHE_KEYS, TTL } from '../lib/cache';
 
 const router = Router();
 
@@ -17,23 +18,31 @@ router.get('/releases-by-genre', async (req: Request, res: Response) => {
   }
 
   try {
+    const cacheKey = CACHE_KEYS.analytics(year, month);
+    const cached = cache.get<object>(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
     const gameWhere = {
       release_year: year,
       ...(month !== undefined ? { release_month: month } : {}),
     };
 
     // Genre başına eşleşen (game_genres satırı) sayısı
-    const grouped = await prisma.gameGenre.groupBy({
-      by: ['genre_id'],
-      where: { game: gameWhere },
-      _count: { _all: true },
-    });
+    const [grouped, genresList, totalGames] = await Promise.all([
+      prisma.gameGenre.groupBy({
+        by: ['genre_id'],
+        where: { game: gameWhere },
+        _count: { _all: true },
+      }),
+      prisma.genre.findMany({
+        select: { id: true, name: true },
+      }),
+      prisma.game.count({ where: gameWhere }),
+    ]);
 
-    const genreIds = grouped.map((g) => g.genre_id);
-    const genres = await prisma.genre.findMany({ where: { id: { in: genreIds } } });
-    const genreNameById = new Map(genres.map((g) => [g.id, g.name]));
-
-    const totalGames = await prisma.game.count({ where: gameWhere });
+    const genreNameById = new Map(genresList.map((g) => [g.id, g.name]));
 
     const byGenre = grouped
       .map((g) => ({
@@ -43,12 +52,15 @@ router.get('/releases-by-genre', async (req: Request, res: Response) => {
       }))
       .sort((a, b) => b.game_count - a.game_count);
 
-    res.json({
+    const result = {
       year,
       month: month ?? null,
       total_games: totalGames,
       genres: byGenre,
-    });
+    };
+
+    cache.set(cacheKey, result, TTL.MEDIUM);
+    res.json(result);
   } catch (error) {
     console.error('Genre bazlı analitik veriler çekilirken hata:', error);
     res.status(500).json({ error: 'Analitik veriler alınamadı.' });
