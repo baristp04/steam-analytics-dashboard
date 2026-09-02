@@ -1,10 +1,13 @@
-import type { Game, Genre, GameGenre } from '@prisma/client';
+import type { Genre, GameGenre } from '@prisma/client';
 
-type GameWithGenres = Game & {
+type SerializableGame = {
+  appid: bigint;
+  last_modified?: bigint | null;
   genres?: (GameGenre & { genre: Genre })[];
+  [key: string]: unknown;
 };
 
-export function serializeGame(game: GameWithGenres) {
+export function serializeGame(game: SerializableGame) {
   return {
     ...game,
     appid: Number(game.appid),
