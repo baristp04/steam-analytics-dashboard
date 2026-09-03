@@ -5,11 +5,12 @@ import { toDashboardGenre, type DashboardGenre } from "../../components/dashboar
 import { useSteamSync } from "./useSteamSync";
 
 export function useDashboardData() {
-  const [year, setYear] = useState(2025);
-  const [month, setMonth] = useState(2);
+
+  const [year, setYear] = useState<number | null>(null);
+  const [month, setMonth] = useState(-1);
 
   const [genres, setGenres] = useState<DashboardGenre[]>([]);
-  const [years, setYears] = useState<number[]>([2023, 2024, 2025]);
+  const [years, setYears] = useState<number[]>([]);
   const [totalGames, setTotalGames] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,6 +19,8 @@ export function useDashboardData() {
     try {
       const data = await api.getYears();
       setYears(data);
+      // Mevcut seçili yıl listede varsa koru, yoksa (veya henüz seçilmediyse) ilk yıla geç.
+      setYear(prev => (prev !== null && data.includes(prev) ? prev : data[0] ?? null));
     } catch (e) {
       console.error('Failed to load years:', e);
     }
@@ -34,6 +37,9 @@ export function useDashboardData() {
   }, []);
 
   const loadAnalytics = useCallback(async () => {
+    // Yıl listesi henüz yüklenmemişse bekle.
+    if (year === null) return;
+
     setLoading(true);
     setError(null);
     try {
@@ -78,10 +84,10 @@ export function useDashboardData() {
   const maxCount = sortedGenres.length > 0 ? Math.max(...sortedGenres.map(g => g.count), 1) : 1;
   const topGenres = sortedGenres.filter(g => g.count > 0).slice(0, 5);
   const topGenre = topGenres[0];
-  const monthLabel = month === -1 ? 'All months' : MONTHS[month];
+  const monthLabel = month === -1 ? 'All months' : MONTHS[month] ?? '';
 
   return {
-    year, setYear,
+    year: year ?? years[0] ?? 0, setYear: setYear as (y: number) => void,
     month, setMonth,
     genres: sortedGenres,
     years,
